@@ -108,6 +108,10 @@ latest_checkpointed_iteration.txt
 # ====================
 # Dataset assets (keep metadata, ignore media)
 # ====================
+*.sif
+*.def
+.vscode
+.env
 
 # gitattributes in dataset
 dataset/**/.gitattributes
