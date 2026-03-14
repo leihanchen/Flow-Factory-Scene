@@ -108,6 +108,10 @@ latest_checkpointed_iteration.txt
 # ====================
 # Dataset assets (keep metadata, ignore media)
 # ====================
+*.sif
+*.def
+.vscode
+.env
 
 # Reconstructed/publication staging for the SFT and offline-DPO smoke datasets
 dataset/_prepared_offline_smoke/

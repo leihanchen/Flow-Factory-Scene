@@ -31,6 +31,11 @@ fi
 
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-16}"
 
+# Export environment variables from .env file
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
 if [[ -z "${WANDB_API_KEY:-}" ]]; then
   echo "Error: WANDB_API_KEY is not set. Export it before submitting with sbatch." >&2
   exit 1
