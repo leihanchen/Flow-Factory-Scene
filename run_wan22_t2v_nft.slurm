@@ -1,14 +1,15 @@
 #!/bin/bash
-#SBATCH --account=def-wangcs
+#SBATCH --account=aip-wangcs
+#SBATCH --partition=gpubase_bynode_b1
 #SBATCH --job-name=flow_factory_nft_wan22_t2v  # Job name
 #SBATCH --output=%x_%j.out       # Standard output and error log
 #SBATCH --error=%x_%j.err        # Standard error log
 #SBATCH --nodes=1                  # total number of nodes
-#SBATCH --gpus-per-node=h100:2      # number of GPUs per node
+#SBATCH --gpus-per-node=h200:8      # number of GPUs per node
 #SBATCH --ntasks-per-node=1        # Run 1 task (your script) on the node
 #SBATCH --cpus-per-task=16         # Give that 1 task 16 CPU cores (MATCHES filter_workers=16)
-#SBATCH --mem-per-cpu=64G          # 16 * 64G = 1024GB Total (Safe for H100 nodes)
-#SBATCH --time=0-04:00:00            # time (DD-HH:MM:SS)
+#SBATCH --mem=0                    # Use the whole node
+#SBATCH --time=0-02:00:00            # time (DD-HH:MM:SS)
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=leihan.chen@torontomu.ca
 
@@ -79,6 +80,9 @@ if [[ "${NUM_PROCESSES}" == *:* ]]; then
 fi
 NUM_PROCESSES="${NUM_PROCESSES%%[^0-9]*}"
 NUM_PROCESSES="${NUM_PROCESSES:-1}"
+
+# Load apptainer module if required by the cluster
+module load apptainer
 
 echo "Using num_processes=${NUM_PROCESSES}"
 
