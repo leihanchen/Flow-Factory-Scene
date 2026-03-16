@@ -36,46 +36,78 @@ if [ -f .env ]; then
     export $(grep -v '^#' .env | xargs)
 fi
 
-if [[ -z "${WANDB_API_KEY:-}" ]]; then
-  echo "Error: WANDB_API_KEY is not set. Export it before submitting with sbatch." >&2
+OFFLINE_MODE="${OFFLINE_MODE:-1}"   # 1 for offline node, 0 for online
+if [[ "${OFFLINE_MODE}" != "0" && "${OFFLINE_MODE}" != "1" ]]; then
+  echo "Error: OFFLINE_MODE must be 0 or 1 (got '${OFFLINE_MODE}')." >&2
   exit 1
 fi
 
 HF_TOKEN_RESOLVED="${HF_TOKEN:-${HUGGINGFACE_HUB_TOKEN:-}}"
-if [[ -z "${HF_TOKEN_RESOLVED}" ]]; then
-  echo "Error: HF_TOKEN (or HUGGINGFACE_HUB_TOKEN) is not set. It is required for Hugging Face download/upload." >&2
-  exit 1
-fi
-
 WANDB_DIR="${WANDB_DIR:-${PROJECT_ROOT}/wandb}"
-HF_HOME="${HF_HOME:-${HOME}/.cache/huggingface}"
+HF_HOME="${HF_HOME:-${PROJECT_ROOT}/.cache/huggingface}"
 HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME}/hub}"
 HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HUB_CACHE}}"
+DATA_CACHE_DIR="${DATA_CACHE_DIR:-${HF_DATASETS_CACHE}}"
+LOG_SAVE_DIR="${LOG_SAVE_DIR:-${PROJECT_ROOT}/outputs/wan22_t2v_nft}"
 
-mkdir -p "${WANDB_DIR}" "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_DATASETS_CACHE}"
+mkdir -p "${WANDB_DIR}" "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_DATASETS_CACHE}" "${DATA_CACHE_DIR}" "${LOG_SAVE_DIR}"
 
-export APPTAINERENV_WANDB_API_KEY="${WANDB_API_KEY}"
+export APPTAINERENV_OFFLINE_MODE="${OFFLINE_MODE}"
 export APPTAINERENV_WANDB_PROJECT="${WANDB_PROJECT:-Flow-Factory-WAN22-T2V-NFT}"
-export APPTAINERENV_WANDB_MODE="${WANDB_MODE:-online}"
 export APPTAINERENV_WANDB_DIR="${WANDB_DIR}"
 if [[ -n "${WANDB_ENTITY:-}" ]]; then
   export APPTAINERENV_WANDB_ENTITY="${WANDB_ENTITY}"
 fi
 
-export APPTAINERENV_HF_TOKEN="${HF_TOKEN_RESOLVED}"
-export APPTAINERENV_HUGGINGFACE_HUB_TOKEN="${HF_TOKEN_RESOLVED}"
 export APPTAINERENV_HF_HOME="${HF_HOME}"
 export APPTAINERENV_HF_HUB_CACHE="${HF_HUB_CACHE}"
 export APPTAINERENV_HF_DATASETS_CACHE="${HF_DATASETS_CACHE}"
 export APPTAINERENV_TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE}"
 
+if [[ "${OFFLINE_MODE}" == "1" ]]; then
+  export APPTAINERENV_WANDB_MODE="${WANDB_MODE:-offline}"
+  export APPTAINERENV_HF_HUB_OFFLINE=1
+  export APPTAINERENV_TRANSFORMERS_OFFLINE=1
+  export APPTAINERENV_HF_DATASETS_OFFLINE=1
+
+  if [[ -n "${WANDB_API_KEY:-}" ]]; then
+    export APPTAINERENV_WANDB_API_KEY="${WANDB_API_KEY}"
+  fi
+
+  if [[ -n "${HF_TOKEN_RESOLVED}" ]]; then
+    export APPTAINERENV_HF_TOKEN="${HF_TOKEN_RESOLVED}"
+    export APPTAINERENV_HUGGINGFACE_HUB_TOKEN="${HF_TOKEN_RESOLVED}"
+  fi
+else
+  if [[ -z "${WANDB_API_KEY:-}" ]]; then
+    echo "Error: WANDB_API_KEY is not set. Export it before submitting with OFFLINE_MODE=0." >&2
+    exit 1
+  fi
+
+  if [[ -z "${HF_TOKEN_RESOLVED}" ]]; then
+    echo "Error: HF_TOKEN (or HUGGINGFACE_HUB_TOKEN) is not set. It is required when OFFLINE_MODE=0." >&2
+    exit 1
+  fi
+
+  export APPTAINERENV_WANDB_MODE="${WANDB_MODE:-online}"
+  export APPTAINERENV_HF_HUB_OFFLINE=0
+  export APPTAINERENV_TRANSFORMERS_OFFLINE=0
+  export APPTAINERENV_HF_DATASETS_OFFLINE=0
+  export APPTAINERENV_WANDB_API_KEY="${WANDB_API_KEY}"
+  export APPTAINERENV_HF_TOKEN="${HF_TOKEN_RESOLVED}"
+  export APPTAINERENV_HUGGINGFACE_HUB_TOKEN="${HF_TOKEN_RESOLVED}"
+fi
+
 echo "Starting NFT fine-tuning job"
 echo "Project root: ${PROJECT_ROOT}"
 echo "SIF: ${SIF_PATH}"
 echo "Config: ${CONFIG_REL}"
+echo "OFFLINE_MODE: ${OFFLINE_MODE}"
 echo "W&B project: ${APPTAINERENV_WANDB_PROJECT}"
+echo "W&B mode: ${APPTAINERENV_WANDB_MODE}"
 echo "HF cache: ${HF_HOME}"
+echo "HF hub offline: ${APPTAINERENV_HF_HUB_OFFLINE}"
 
 # NOTE: The YAML may set a fixed num_processes value.
 # Override it with the GPU count allocated by SLURM for this job.
@@ -99,4 +131,4 @@ srun --ntasks=1 apptainer exec --nv \
   --bind /etc/ssl/certs:/etc/ssl/certs:ro \
   --bind /etc/pki:/etc/pki:ro \
   "${SIF_PATH}" \
-  bash -lc "cd \"${PROJECT_ROOT}\" && ff-train \"${CONFIG_REL}\" --num_processes ${NUM_PROCESSES}"
+  bash -lc "cd \"${PROJECT_ROOT}\" && ff-train \"${CONFIG_REL}\" --num_processes ${NUM_PROCESSES} --data.cache_dir \"${DATA_CACHE_DIR}\" --log.save_dir \"${LOG_SAVE_DIR}\""
