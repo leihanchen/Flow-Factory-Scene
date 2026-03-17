@@ -22,6 +22,8 @@ import logging
 import torch
 import yaml
 
+from .hparams.overrides import apply_dot_overrides, parse_cli_overrides
+
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s')
 logger = logging.getLogger(__name__)
@@ -120,7 +122,17 @@ def parse_args():
 def train_cli():
     # 1. Parse known args and keep the rest in 'unknown'
     args, unknown = parse_args()
-    config = yaml.safe_load(open(args.config, 'r'))
+
+    try:
+        cli_overrides = parse_cli_overrides(unknown)
+    except ValueError as exc:
+        logger.error(f"Invalid CLI overrides: {exc}")
+        sys.exit(2)
+
+    with open(args.config, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+
+    config = apply_dot_overrides(config, cli_overrides)
     config_file = config.get('config_file')
 
     # 2. Three-layer config merging: YAML (baseline) -> ENV (auto-detect) -> CLI (highest priority)
@@ -131,10 +143,12 @@ def train_cli():
         logger.info(f"Detected multi-node environment variables: {env_overrides}")
 
     def _resolve(key: str, default=None):
-        """Resolve a config value with priority: CLI args > env_overrides > yaml config > default."""
+        """Resolve a config value with priority: dedicated CLI > override CLI > env > YAML > default."""
         cli_val = getattr(args, key, None)
         if cli_val is not None:
             return cli_val
+        if key in cli_overrides:
+            return cli_overrides[key]
         if key in env_overrides:
             return env_overrides[key]
         if key in config:
