@@ -18,6 +18,7 @@ set -euo pipefail
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
 SIF_PATH="${PROJECT_ROOT}/flow-factory.sif"
 CONFIG_REL="examples/nft/lora/wan22_t2v.yaml"
+CONTAINER_PROJECT_ROOT="/opt/Flow-Factory"
 
 if [[ ! -f "${SIF_PATH}" ]]; then
   echo "Error: SIF file not found at ${SIF_PATH}" >&2
@@ -101,6 +102,7 @@ fi
 
 echo "Starting NFT fine-tuning job"
 echo "Project root: ${PROJECT_ROOT}"
+echo "Container project root: ${CONTAINER_PROJECT_ROOT}"
 echo "SIF: ${SIF_PATH}"
 echo "Config: ${CONFIG_REL}"
 echo "OFFLINE_MODE: ${OFFLINE_MODE}"
@@ -125,10 +127,11 @@ echo "Using num_processes=${NUM_PROCESSES}"
 
 srun --ntasks=1 apptainer exec --nv \
   --bind "${PROJECT_ROOT}:${PROJECT_ROOT}" \
+  --bind "${PROJECT_ROOT}:${CONTAINER_PROJECT_ROOT}" \
   --bind "${WANDB_DIR}:${WANDB_DIR}" \
   --bind "${HF_HOME}:${HF_HOME}" \
   --bind /dev/shm:/dev/shm \
   --bind /etc/ssl/certs:/etc/ssl/certs:ro \
   --bind /etc/pki:/etc/pki:ro \
   "${SIF_PATH}" \
-  bash -lc "cd \"${PROJECT_ROOT}\" && ff-train \"${CONFIG_REL}\" --num_processes ${NUM_PROCESSES} --data.cache_dir \"${DATA_CACHE_DIR}\" --log.save_dir \"${LOG_SAVE_DIR}\""
+  bash -lc "cd \"${CONTAINER_PROJECT_ROOT}\" && ff-train \"${CONFIG_REL}\" --num_processes ${NUM_PROCESSES} --data.cache_dir \"${DATA_CACHE_DIR}\" --log.save_dir \"${LOG_SAVE_DIR}\""
