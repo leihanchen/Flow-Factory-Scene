@@ -513,14 +513,19 @@ class Arguments(ArgABC):
         return cls(**init_kwargs)
 
     @classmethod
-    def load_from_yaml(cls, yaml_file: str) -> Arguments:
+    def load_from_yaml(
+        cls,
+        yaml_file: str,
+        overrides: dict[str, Any] | None = None,
+    ) -> Arguments:
         """
         Load Arguments from a YAML configuration file.
         Example: args = Arguments.load_from_yaml("config.yaml")
         """
         with open(yaml_file, 'r', encoding='utf-8') as f:
             args_dict = yaml.safe_load(f)
-        
+
+        args_dict = apply_dot_overrides(args_dict, overrides or {})
         return cls.from_dict(args_dict)
     
     def __str__(self) -> str:

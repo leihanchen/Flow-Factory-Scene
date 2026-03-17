@@ -17,6 +17,7 @@ import os
 import argparse
 import logging
 from .hparams import Arguments
+from .hparams.overrides import parse_cli_overrides
 from .trainers import load_trainer
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s')
@@ -32,9 +33,15 @@ def parse_args():
 
 def main():
     args, unknown = parse_args()
-    
+
+    try:
+        cli_overrides = parse_cli_overrides(unknown)
+    except ValueError as exc:
+        logger.error(f"Invalid CLI overrides: {exc}")
+        raise SystemExit(2) from exc
+
     # Load configuration
-    config = Arguments.load_from_yaml(args.config)
+    config = Arguments.load_from_yaml(args.config, overrides=cli_overrides)
     
     # Log distributed setup info (only from rank 0)
     rank = int(os.environ.get("RANK", "0"))
