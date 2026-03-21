@@ -26,7 +26,7 @@ model:
   model_type: "wan2_i2v"  # wan2_t2v, wan2_i2v, wan2_v2v
   resume_path: null # Path to load previous checkpoint/lora adapter
   resume_type: null # Options: lora, full, state. Null to auto-detect based on `finetune_type`
-  # attn_backend: '_flash_3_hub' # Use flash attention 3 backend.
+  attn_backend: '_flash_3_hub' # Use flash attention 3 backend.
 
 log:
   run_name: null  # Run name (auto: {model_type}_{finetune_type}_{trainer_type}_{timestamp})
