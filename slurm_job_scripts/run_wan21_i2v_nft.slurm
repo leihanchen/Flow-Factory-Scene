@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --account=aip-wangcs
 #SBATCH --partition=gpubase_bynode_b1
-#SBATCH --job-name=flow_factory_nft_wan22_t2v  # Job name
+#SBATCH --job-name=flow_factory_nft_wan21_i2v  # Job name
 #SBATCH --output=%x_%j.out       # Standard output and error log
 #SBATCH --error=%x_%j.err        # Standard error log
 #SBATCH --nodes=1                  # total number of nodes
