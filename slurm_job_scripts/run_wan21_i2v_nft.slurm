@@ -1,15 +1,14 @@
 #!/bin/bash
 #SBATCH --account=aip-wangcs
-#SBATCH --partition=gpubase_bynode_b1
 #SBATCH --job-name=flow_factory_nft_wan21_i2v  # Job name
 #SBATCH --output=%x_%j.out       # Standard output and error log
 #SBATCH --error=%x_%j.err        # Standard error log
 #SBATCH --nodes=1                  # total number of nodes
 #SBATCH --gpus-per-node=h200:8      # number of GPUs per node
 #SBATCH --ntasks-per-node=1        # Run 1 task (your script) on the node
-#SBATCH --cpus-per-task=8          # Give that 1 task 8 CPU cores
+#SBATCH --cpus-per-task=16          # Give that 1 task 16 CPU cores
 #SBATCH --mem=0                    # Use the whole node
-#SBATCH --time=0-02:00:00            # time (DD-HH:MM:SS)
+#SBATCH --time=1-00:00:00            # time (DD-HH:MM:SS)
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=leihan.chen@torontomu.ca
 
