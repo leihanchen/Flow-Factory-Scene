@@ -779,6 +779,89 @@ class BaseAdapter(ABC):
                     logger.warning(f"{comp_name} does not support gradient checkpointing")
 
     # ============================== Attention Backend ==============================
+    def _is_hf_hub_offline(self) -> bool:
+        """Return True when Hugging Face Hub offline mode is enabled."""
+        val = os.getenv("HF_HUB_OFFLINE")
+        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _resolve_flash_attn3_revision(self) -> Optional[str]:
+        """Resolve flash-attn3 revision from env or local cache refs."""
+        # Highest priority: explicit env override
+        for env_name in ["FLOW_FACTORY_FLASH_ATTN3_REVISION", "FLASH_ATTN3_REVISION"]:
+            val = os.getenv(env_name)
+            if val:
+                return val.strip()
+
+        # Fallback: infer from local Hugging Face cache refs/main
+        cache_candidates: List[str] = []
+        hf_hub_cache = os.getenv("HF_HUB_CACHE")
+        if hf_hub_cache:
+            cache_candidates.append(hf_hub_cache)
+
+        hf_home = os.getenv("HF_HOME")
+        if hf_home:
+            cache_candidates.append(os.path.join(hf_home, "hub"))
+
+        cache_candidates.append(os.path.expanduser("~/.cache/huggingface/hub"))
+
+        rel_ref_path = os.path.join(
+            "models--kernels-community--flash-attn3",
+            "refs",
+            "main",
+        )
+        for base in cache_candidates:
+            ref_path = os.path.join(base, rel_ref_path)
+            if os.path.isfile(ref_path):
+                try:
+                    with open(ref_path, "r", encoding="utf-8") as f:
+                        val = f.read().strip()
+                    if val:
+                        return val
+                except OSError:
+                    continue
+
+        return None
+
+    def _pin_flash_attn3_hub_revision_for_offline(self, backend: str) -> None:
+        """
+        For offline `_flash_3_hub` / `_flash_3_varlen_hub`, pin a concrete revision
+        and disable version lookup to avoid online `/refs` requests.
+        """
+        if backend not in {"_flash_3_hub", "_flash_3_varlen_hub"}:
+            return
+
+        if not self._is_hf_hub_offline():
+            return
+
+        revision = self._resolve_flash_attn3_revision()
+        if not revision:
+            if self.accelerator.is_main_process:
+                logger.warning(
+                    "HF_HUB_OFFLINE=1 and flash-attn3 hub backend is enabled, "
+                    "but no local revision was found. Set FLOW_FACTORY_FLASH_ATTN3_REVISION "
+                    "or ensure cache refs exist in HF_HUB_CACHE/HF_HOME."
+                )
+            return
+
+        try:
+            from diffusers.models.attention_dispatch import _HUB_KERNELS_REGISTRY
+
+            patched = 0
+            for cfg in _HUB_KERNELS_REGISTRY.values():
+                if getattr(cfg, "repo_id", None) == "kernels-community/flash-attn3":
+                    cfg.revision = revision
+                    cfg.version = None
+                    patched += 1
+
+            if self.accelerator.is_main_process and patched > 0:
+                logger.info(
+                    f"Pinned flash-attn3 hub kernels to revision {revision} for offline mode "
+                    f"(patched {patched} backend entries)."
+                )
+        except Exception as e:
+            if self.accelerator.is_main_process:
+                logger.warning(f"Failed to pin flash-attn3 hub revision for offline mode: {e}")
+
     def _set_attention_backend(self) -> None:
         """
         Set attention backend for all transformer components.
@@ -789,7 +872,9 @@ class BaseAdapter(ABC):
         backend = self.model_args.attn_backend
         if backend is None:
             return
-        
+
+        self._pin_flash_attn3_hub_revision_for_offline(str(backend))
+
         for transformer_name in self.transformer_names:
             transformer = self.get_component(transformer_name)
             if hasattr(transformer, 'set_attention_backend'):
