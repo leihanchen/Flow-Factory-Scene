@@ -32,7 +32,10 @@ two stay consistent (the property the validator's lossless category guarantees)
 even for approximate kernels and coupled algorithms.
 """
 
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
+import os
+from typing import TYPE_CHECKING, Optional
 
 from ..utils.logger_utils import setup_logger
 from .abc import BaseAccelerator
@@ -41,6 +44,89 @@ if TYPE_CHECKING:
     from ..models.abc import BaseAdapter
 
 logger = setup_logger(__name__)
+
+
+def _is_hf_hub_offline() -> bool:
+    """Return True when Hugging Face Hub offline mode is enabled."""
+    val = os.getenv("HF_HUB_OFFLINE")
+    return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_flash_attn3_revision() -> Optional[str]:
+    """Resolve flash-attn3 revision from env or local cache refs."""
+    for env_name in ["FLOW_FACTORY_FLASH_ATTN3_REVISION", "FLASH_ATTN3_REVISION"]:
+        val = os.getenv(env_name)
+        if val:
+            return val.strip()
+
+    cache_candidates: list[str] = []
+    hf_hub_cache = os.getenv("HF_HUB_CACHE")
+    if hf_hub_cache:
+        cache_candidates.append(hf_hub_cache)
+
+    hf_home = os.getenv("HF_HOME")
+    if hf_home:
+        cache_candidates.append(os.path.join(hf_home, "hub"))
+
+    cache_candidates.append(os.path.expanduser("~/.cache/huggingface/hub"))
+
+    rel_ref_path = os.path.join(
+        "models--kernels-community--flash-attn3",
+        "refs",
+        "main",
+    )
+    for base in cache_candidates:
+        ref_path = os.path.join(base, rel_ref_path)
+        if os.path.isfile(ref_path):
+            try:
+                with open(ref_path, "r", encoding="utf-8") as f:
+                    val = f.read().strip()
+                if val:
+                    return val
+            except OSError:
+                continue
+
+    return None
+
+
+def _pin_flash_attn3_hub_revision_for_offline(backend: str, *, is_main_process: bool) -> None:
+    """Pin a concrete flash-attn3 revision so offline hub backends skip `/refs` lookups."""
+    if backend not in {"_flash_3_hub", "_flash_3_varlen_hub"}:
+        return
+
+    if not _is_hf_hub_offline():
+        return
+
+    revision = _resolve_flash_attn3_revision()
+    if not revision:
+        if is_main_process:
+            logger.warning(
+                "HF_HUB_OFFLINE=1 and flash-attn3 hub backend is enabled, "
+                "but no local revision was found. Set FLOW_FACTORY_FLASH_ATTN3_REVISION "
+                "or ensure cache refs exist in HF_HUB_CACHE/HF_HOME."
+            )
+        return
+
+    try:
+        from diffusers.models.attention_dispatch import _HUB_KERNELS_REGISTRY
+
+        patched = 0
+        for cfg in _HUB_KERNELS_REGISTRY.values():
+            if getattr(cfg, "repo_id", None) == "kernels-community/flash-attn3":
+                cfg.revision = revision
+                cfg.version = None
+                patched += 1
+
+        if is_main_process and patched > 0:
+            logger.info(
+                "Pinned flash-attn3 hub kernels to revision %s for offline mode "
+                "(patched %d backend entries).",
+                revision,
+                patched,
+            )
+    except Exception as e:
+        if is_main_process:
+            logger.warning("Failed to pin flash-attn3 hub revision for offline mode: %s", e)
 
 
 class AttentionBackendAccelerator(BaseAccelerator):
@@ -65,6 +151,11 @@ class AttentionBackendAccelerator(BaseAccelerator):
                 "AttentionBackendAccelerator requires a `backend` param, e.g. "
                 "`{ name: attention_backend, params: { backend: _flash_3_hub } }`."
             )
+
+        _pin_flash_attn3_hub_revision_for_offline(
+            str(backend),
+            is_main_process=adapter.accelerator.is_main_process,
+        )
 
         applied = False
         for name in adapter.transformer_names:
