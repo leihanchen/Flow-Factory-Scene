@@ -48,6 +48,9 @@ Flow-Factory supports two paradigms for computing rewards:
 | `rational_rewards_t2i` | Pointwise | T2I rubric judge (remote VLM); see [VLM-as-Judge](#vlm-as-judge) and [Example: Rational Rewards](#example-rational-rewards) | [Rational Rewards](https://github.com/TIGER-AI-Lab/RationalRewards) |
 | `rational_rewards_edit` | Pointwise | Image-edit rubric (source + edited). Same setup family as T2I variant | [Rational Rewards](https://github.com/TIGER-AI-Lab/RationalRewards) |
 | `qwen_image_bench` | Pointwise | Qwen-Image-Bench "Q-Judger" (remote VLM); hierarchical 5-dim / 56-facet scoring, faithful per-prompt `dims_en`; see [VLM-as-Judge](#vlm-as-judge) and [Example: Qwen-Image-Bench](#example-qwen-image-bench) | [Qwen-Image-Bench](https://github.com/QwenLM/Qwen-Image-Bench) |
+| `camera_motion_smoothness` | Pointwise | VGGRPO camera smoothness from video moments or camera tracks | [VGGRPO](https://arxiv.org/abs/2603.26599) |
+| `geometry_reprojection_consistency` | Pointwise | VGGRPO reprojection consistency from depth/point/camera or video fallback | [VGGRPO](https://arxiv.org/abs/2603.26599) |
+| `combined_video_geometry` | Pointwise | Weighted sum of the two VGGRPO components above | [VGGRPO](https://arxiv.org/abs/2603.26599) |
 
 ## VLM-as-Judge
 
@@ -91,6 +94,12 @@ Flow-Factory supports two paradigms for computing rewards:
 | ``examples/nft/lora/flux1/rational_rewards_t2i.yaml`` | ``rational_rewards_t2i`` | FLUX.1-dev T2I |
 | ``examples/nft/lora/qwen_image_edit_plus/rational_rewards_edit.yaml`` | ``rational_rewards_edit`` | Qwen-Image-Edit-Plus |
 | ``examples/nft/lora/flux1_kontext/rational_rewards_edit.yaml`` | ``rational_rewards_edit`` | FLUX.1-Kontext |
+
+**Example video geometry reward config**:
+
+| Config | Reward | Task |
+|--------|--------|------|
+| ``examples/grpo/lora/wan22/vggrpo_rewards.yaml`` | ``combined_video_geometry`` | Wan2.2 T2V (VGGRPO-style) |
 
 Rubric format and project background: [TIGER-AI-Lab/RationalRewards](https://github.com/TIGER-AI-Lab/RationalRewards). Tuning how parsed aspect scores map to the final scalar: adjust ``aggregate_aspect_scores`` in ``src/flow_factory/rewards/rational_rewards_t2i.py`` (shared with edit via ``supported_aspects``) or post-process in the edit module after parsing.
 

@@ -18,6 +18,7 @@ examples/{algorithm}/{finetune_type}/{model_type}/{variant}.yaml
 **Naming rules**:
 - Model directory names use underscores matching the config's `model_type` field (e.g., `sd3-5` → `sd3_5`, `flux1-kontext` → `flux1_kontext`).
 - `default.yaml` is the baseline config for a model. Use descriptive names for variants (`nocfg.yaml`, `rational_rewards_t2i.yaml`, `t2v.yaml`, `i2v.yaml`).
+- For VGGRPO-style geometry rewards on video models, prefer variant names like `vggrpo_rewards.yaml`.
 
 **Quick start**:
 ```bash

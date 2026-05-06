@@ -135,6 +135,9 @@ extensions are `GRPOGuardTrainer → GRPOTrainer`, `DPPOTrainer → GRPOTrainer`
 | `geneval2_soft_tifa` | `GenEval2SoftTIFARewardModel` | Pointwise |
 | `hpsv2` | `HPSv2RewardModel` | Pointwise |
 | `qwen_image_bench` | `QwenImageBenchRewardModel` | Pointwise |
+| `camera_motion_smoothness` | `CameraMotionSmoothnessReward` | Pointwise |
+| `geometry_reprojection_consistency` | `GeometryReprojectionConsistencyReward` | Pointwise |
+| `combined_video_geometry` | `CombinedVideoGeometryReward` | Pointwise |
 
 **Accelerators** (`acceleration/registry.py`):
 | Key | Class | Safety | Stage | Notes |

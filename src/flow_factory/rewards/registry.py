@@ -41,6 +41,9 @@ _REWARD_MODEL_REGISTRY: Dict[str, str] = {
     "geneval2_soft_tifa": "flow_factory.rewards.geneval2_soft_tifa.GenEval2SoftTIFARewardModel",
     "hpsv2": "flow_factory.rewards.hpsv2_reward.HPSv2RewardModel",
     "qwen_image_bench": "flow_factory.rewards.qwen_image_bench.reward.QwenImageBenchRewardModel",
+    "camera_motion_smoothness": "flow_factory.rewards.video_geometry_rewards.CameraMotionSmoothnessReward",
+    "geometry_reprojection_consistency": "flow_factory.rewards.video_geometry_rewards.GeometryReprojectionConsistencyReward",
+    "combined_video_geometry": "flow_factory.rewards.video_geometry_rewards.CombinedVideoGeometryReward",
 }
 _REWARD_MODEL_REGISTRY = {k.lower(): v for k, v in _REWARD_MODEL_REGISTRY.items()}
 
