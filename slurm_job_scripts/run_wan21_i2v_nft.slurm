@@ -16,7 +16,7 @@ set -euo pipefail
 
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
 SIF_PATH="${PROJECT_ROOT}/flow-factory.sif"
-CONFIG_REL="examples/nft/lora/wan21_i2v.yaml"
+CONFIG_REL="examples/nft/lora/wan21/i2v.yaml"
 CONTAINER_PROJECT_ROOT="/opt/Flow-Factory"
 
 if [[ ! -f "${SIF_PATH}" ]]; then
@@ -49,12 +49,12 @@ HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME}/hub}"
 HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HUB_CACHE}}"
 DATA_CACHE_DIR="${DATA_CACHE_DIR:-${HF_DATASETS_CACHE}}"
-LOG_SAVE_DIR="${LOG_SAVE_DIR:-${PROJECT_ROOT}/outputs/wan22_t2v_nft}"
+LOG_SAVE_DIR="${LOG_SAVE_DIR:-${PROJECT_ROOT}/outputs/wan21_t2v_nft}"
 
 mkdir -p "${WANDB_DIR}" "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_DATASETS_CACHE}" "${DATA_CACHE_DIR}" "${LOG_SAVE_DIR}"
 
 export APPTAINERENV_OFFLINE_MODE="${OFFLINE_MODE}"
-export APPTAINERENV_WANDB_PROJECT="${WANDB_PROJECT:-Flow-Factory-WAN22-T2V-NFT}"
+export APPTAINERENV_WANDB_PROJECT="${WANDB_PROJECT:-Flow-Factory-WAN21-T2V-NFT}"
 export APPTAINERENV_WANDB_DIR="${WANDB_DIR}"
 if [[ -n "${WANDB_ENTITY:-}" ]]; then
   export APPTAINERENV_WANDB_ENTITY="${WANDB_ENTITY}"
@@ -133,7 +133,6 @@ module load apptainer
 echo "Using num_processes=${NUM_PROCESSES}"
 
 srun --ntasks=1 apptainer exec --nv \
-  --bind "${PROJECT_ROOT}:${PROJECT_ROOT}" \
   --bind "${PROJECT_ROOT}:${CONTAINER_PROJECT_ROOT}" \
   --bind "${WANDB_DIR}:${WANDB_DIR}" \
   --bind "${HF_HOME}:${HF_HOME}" \
