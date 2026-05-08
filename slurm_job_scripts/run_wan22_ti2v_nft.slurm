@@ -1,7 +1,6 @@
 #!/bin/bash
 #SBATCH --account=aip-wangcs
-#SBATCH --partition=gpubase_bynode_b1
-#SBATCH --job-name=flow_factory_nft_wan22_t2v  # Job name
+#SBATCH --job-name=flow_factory_nft_wan22_ti2v_5b  # Job name
 #SBATCH --output=%x_%j.out       # Standard output and error log
 #SBATCH --error=%x_%j.err        # Standard error log
 #SBATCH --nodes=1                  # total number of nodes
@@ -9,7 +8,7 @@
 #SBATCH --ntasks-per-node=1        # Run 1 task (your script) on the node
 #SBATCH --cpus-per-task=16         # Give that 1 task 16 CPU cores (MATCHES filter_workers=16)
 #SBATCH --mem=0                    # Use the whole node
-#SBATCH --time=0-02:00:00            # time (DD-HH:MM:SS)
+#SBATCH --time=1-00:00:00            # time (DD-HH:MM:SS)
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=leihan.chen@torontomu.ca
 
@@ -17,7 +16,7 @@ set -euo pipefail
 
 PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
 SIF_PATH="${PROJECT_ROOT}/flow-factory.sif"
-CONFIG_REL="examples/nft/lora/wan22_t2v.yaml"
+CONFIG_REL="examples/nft/lora/wan22/i2v.yaml"
 CONTAINER_PROJECT_ROOT="/opt/Flow-Factory"
 
 if [[ ! -f "${SIF_PATH}" ]]; then
@@ -51,8 +50,26 @@ HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HUB_CACHE}}"
 DATA_CACHE_DIR="${DATA_CACHE_DIR:-${HF_DATASETS_CACHE}}"
 LOG_SAVE_DIR="${LOG_SAVE_DIR:-${PROJECT_ROOT}/outputs/wan22_t2v_nft}"
+MODEL_ID="Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+MODEL_NAME_OR_PATH="${MODEL_NAME_OR_PATH:-${MODEL_ID}}"
+MODEL_CACHE_DIR="${HF_HUB_CACHE}/models--Wan-AI--Wan2.2-TI2V-5B-Diffusers"
 
 mkdir -p "${WANDB_DIR}" "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_DATASETS_CACHE}" "${DATA_CACHE_DIR}" "${LOG_SAVE_DIR}"
+
+MODEL_CACHED=0
+if [[ -d "${MODEL_CACHE_DIR}/snapshots" ]] && compgen -G "${MODEL_CACHE_DIR}/snapshots/*" > /dev/null; then
+  MODEL_CACHED=1
+fi
+
+if [[ "${OFFLINE_MODE}" == "1" ]]; then
+  if [[ -d "${MODEL_NAME_OR_PATH}" ]]; then
+    :
+  elif [[ "${MODEL_CACHED}" -eq 0 ]]; then
+    echo "Error: Model '${MODEL_NAME_OR_PATH}' is not cached under ${HF_HUB_CACHE} and OFFLINE_MODE=1." >&2
+    echo "Set OFFLINE_MODE=0 with HF_TOKEN to download, or set MODEL_NAME_OR_PATH to a local directory." >&2
+    exit 1
+  fi
+fi
 
 export APPTAINERENV_OFFLINE_MODE="${OFFLINE_MODE}"
 export APPTAINERENV_WANDB_PROJECT="${WANDB_PROJECT:-Flow-Factory-WAN22-T2V-NFT}"
@@ -134,7 +151,6 @@ module load apptainer
 echo "Using num_processes=${NUM_PROCESSES}"
 
 srun --ntasks=1 apptainer exec --nv \
-  --bind "${PROJECT_ROOT}:${PROJECT_ROOT}" \
   --bind "${PROJECT_ROOT}:${CONTAINER_PROJECT_ROOT}" \
   --bind "${WANDB_DIR}:${WANDB_DIR}" \
   --bind "${HF_HOME}:${HF_HOME}" \
@@ -142,4 +158,4 @@ srun --ntasks=1 apptainer exec --nv \
   --bind /etc/ssl/certs:/etc/ssl/certs:ro \
   --bind /etc/pki:/etc/pki:ro \
   "${SIF_PATH}" \
-  bash -lc "cd \"${CONTAINER_PROJECT_ROOT}\" && ff-train \"${CONFIG_REL}\" --num_processes ${NUM_PROCESSES} --data.cache_dir \"${DATA_CACHE_DIR}\" --log.save_dir \"${LOG_SAVE_DIR}\""
+  bash -lc "cd \"${CONTAINER_PROJECT_ROOT}\" && ff-train \"${CONFIG_REL}\" --num_processes ${NUM_PROCESSES} --data.cache_dir \"${DATA_CACHE_DIR}\" --log.save_dir \"${LOG_SAVE_DIR}\" --model.model_name_or_path \"${MODEL_NAME_OR_PATH}\""
