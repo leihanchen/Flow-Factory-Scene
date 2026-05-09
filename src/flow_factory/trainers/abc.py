@@ -167,6 +167,8 @@ class BaseTrainer(MultiRoleCheckpointingMixin, MultiRoleBackendValidationMixin, 
             type(self).execution_contract
         )
         self._validate_execution_hooks()
+        self._steps_at_epoch_start = 0
+        self._steps_at_epoch_end = 0
 
         self._initialization()
         self._realize_runtime_child_declarations()
@@ -657,6 +659,33 @@ class BaseTrainer(MultiRoleCheckpointingMixin, MultiRoleBackendValidationMixin, 
     def _canonical_checkpoint_path(path: str) -> str:
         """Return a symlink-resolved absolute checkpoint identity."""
         return os.path.realpath(os.path.abspath(os.path.expanduser(os.fspath(path))))
+
+    def _log_step_perf(self, stage_timings: dict[str, float], num_samples: int = 0) -> None:
+        """Log per-stage timing and derived throughput metrics.
+
+        Args:
+            stage_timings: Raw stage timings from StepTimer.collect()
+                e.g. {"rollout_ms": 123.4, "reward_ms": 56.7, ...}
+            num_samples: Total rollout samples this epoch (for throughput).
+        """
+        perf_data = dict(stage_timings)
+
+        # Total epoch time = sum of all stage times
+        total_ms = sum(stage_timings.values())
+        perf_data["epoch_ms"] = total_ms
+
+        # Per-optimizer-step time (epoch / max(1, steps_this_epoch))
+        steps_this_epoch = max(1, self._steps_at_epoch_end - self._steps_at_epoch_start)
+        perf_data["time_per_step_ms"] = total_ms / steps_this_epoch
+
+        # Throughput: samples per second
+        if num_samples > 0 and total_ms > 0:
+            perf_data["throughput_samples_per_sec"] = num_samples / (total_ms / 1000.0)
+
+        self.log_data(
+            {f"perf/{k}": v for k, v in perf_data.items()},
+            step=self.step,
+        )
 
     def should_continue_training(self) -> bool:
         """Continue until the active acquisition cycle reaches ``max_epochs``."""
