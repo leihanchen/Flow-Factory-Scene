@@ -85,6 +85,7 @@ from ..utils.checkpoint import (
 from ..utils.dist import gather_aligned_floating_tensors, reduce_loss_info
 from ..utils.logger_utils import setup_logger
 from ..utils.noise_schedule import TimeSampler
+from ..utils.step_timer import StepTimer
 from .common.runtime_identity import (
     build_default_data_identity_payload,
     build_default_execution_identity_payload,
@@ -1543,11 +1544,19 @@ class BaseTrainer(MultiRoleCheckpointingMixin, MultiRoleBackendValidationMixin, 
         Distillation accumulates several dataloader batches before a single
         optimizer step, so the grouping is a hook rather than a fixed sequence.
         """
+        self._steps_at_epoch_start = self.step
+        timer = StepTimer()
         with self.sampling_context():
-            samples = self.sample()
+            with timer("rollout"):
+                samples = self.sample()
+        num_samples = len(samples)
         if type(self).execution_contract.feedback is FeedbackMode.RUNTIME_REWARD:
-            self.prepare_feedback(samples)
-        self.optimize(samples)
+            with timer("reward"):
+                self.prepare_feedback(samples)
+        with timer("optimize"):
+            self.optimize(samples)
+        self._steps_at_epoch_end = self.step
+        self._log_step_perf(timer.collect(), num_samples=num_samples)
 
     @contextmanager
     def sampling_context(self) -> Iterator[None]:
@@ -2121,6 +2130,7 @@ class BaseTrainer(MultiRoleCheckpointingMixin, MultiRoleBackendValidationMixin, 
                 if buffer is not None:
                     buffer.clear()
                 all_samples: List[BaseSample] = []
+                eval_timer = StepTimer()
 
                 # Merge per-dataset eval overrides with shared eval_args
                 ed_config = self._eval_dataset_configs[dataset_name]
@@ -2130,41 +2140,48 @@ class BaseTrainer(MultiRoleCheckpointingMixin, MultiRoleBackendValidationMixin, 
                     else dict(self.eval_args)
                 )
 
-                for batch in tqdm(
-                    dataloader,
-                    desc=f"Eval/{dataset_name}",
-                    disable=not self.show_progress_bar,
-                ):
-                    batch = self._augment_batch_with_source(
-                        batch, dataset_name, ed_config.source_id
-                    )
-                    generator = create_generator_by_prompt(batch["prompt"], self.training_args.seed)
-                    samples = self.sample_batch(
-                        batch,
-                        reward_buffer=buffer,
-                        compute_log_prob=False,
-                        generator=generator,
-                        trajectory_indices=None,
-                        **eval_kwargs,
-                    )
-                    all_samples.extend(samples)
+                with eval_timer("eval_inference"):
+                    for batch in tqdm(
+                        dataloader,
+                        desc=f"Eval/{dataset_name}",
+                        disable=not self.show_progress_bar,
+                    ):
+                        batch = self._augment_batch_with_source(
+                            batch, dataset_name, ed_config.source_id
+                        )
+                        generator = create_generator_by_prompt(
+                            batch["prompt"], self.training_args.seed
+                        )
+                        samples = self.sample_batch(
+                            batch,
+                            reward_buffer=buffer,
+                            compute_log_prob=False,
+                            generator=generator,
+                            trajectory_indices=None,
+                            **eval_kwargs,
+                        )
+                        all_samples.extend(samples)
 
                 gathered_rewards: Dict[str, np.ndarray] = {}
                 if buffer is not None:
-                    rewards = buffer.finalize(store_to_samples=True, split="pointwise")
-                    # Pack all reward columns so evaluation pays for one gather per
-                    # dataset rather than one gather per reward model.
-                    rewards_tensors = {
-                        key: torch.as_tensor(value).to(self.accelerator.device)
-                        for key, value in rewards.items()
-                    }
-                    gathered_rewards = {
-                        key: value.cpu().numpy()
-                        for key, value in gather_aligned_floating_tensors(
-                            self.accelerator,
-                            rewards_tensors,
-                        ).items()
-                    }
+                    with eval_timer("eval_reward"):
+                        rewards = buffer.finalize(store_to_samples=True, split="pointwise")
+                    with eval_timer("eval_gather"):
+                        # Pack all reward columns so evaluation pays for one gather per
+                        # dataset rather than one gather per reward model.
+                        rewards_tensors = {
+                            key: torch.as_tensor(value).to(self.accelerator.device)
+                            for key, value in rewards.items()
+                        }
+                        gathered_rewards = {
+                            key: value.cpu().numpy()
+                            for key, value in gather_aligned_floating_tensors(
+                                self.accelerator,
+                                rewards_tensors,
+                            ).items()
+                        }
+
+                eval_timings = eval_timer.collect()
 
                 # Log per-dataset immediately to avoid accumulating all samples in memory
                 if self.accelerator.is_main_process:
@@ -2173,6 +2190,9 @@ class BaseTrainer(MultiRoleCheckpointingMixin, MultiRoleBackendValidationMixin, 
                         log_data[f"eval/{dataset_name}/reward_{k}_mean"] = np.mean(v)
                         log_data[f"eval/{dataset_name}/reward_{k}_std"] = np.std(v)
                     log_data[f"eval/{dataset_name}/samples"] = all_samples
+                    log_data.update(
+                        {f"perf/{dataset_name}/{k}": v for k, v in eval_timings.items()}
+                    )
                     self.log_data(log_data, step=self.step)
 
         self.accelerator.wait_for_everyone()
