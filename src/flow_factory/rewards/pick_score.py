@@ -160,8 +160,7 @@ class PickScoreRankRewardModel(GroupwiseRewardModel):
         image: list[Image.Image],
     ) -> torch.Tensor:
         """Compute PickScore for a batch of image-prompt pairs."""
-        inputs = self.processor(
-            text=prompt,
+        image_inputs = self.processor(
             images=image,
             padding=True,
             truncation=True,

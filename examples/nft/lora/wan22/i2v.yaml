@@ -108,7 +108,7 @@ eval:
 # Reward Model Configuration
 rewards:
   - name: "pick_score"
-    reward_model: "PickScore"
+    reward_model: "PickScoreRank"
     batch_size: 16
     device: "cuda"
     dtype: bfloat16
@@ -116,7 +116,7 @@ rewards:
 # Optional Evaluation Reward Models
 eval_rewards:
   - name: "pick_score"
-    reward_model: "PickScore"
+    reward_model: "PickScoreRank"
     batch_size: 32
     device: "cuda"
     dtype: bfloat16
