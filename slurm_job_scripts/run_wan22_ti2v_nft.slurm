@@ -8,7 +8,7 @@
 #SBATCH --ntasks-per-node=1        # Run 1 task (your script) on the node
 #SBATCH --cpus-per-task=16         # Give that 1 task 16 CPU cores (MATCHES filter_workers=16)
 #SBATCH --mem=0                    # Use the whole node
-#SBATCH --time=1-00:00:00            # time (DD-HH:MM:SS)
+#SBATCH --time=0-08:00:00            # time (DD-HH:MM:SS)
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=leihan.chen@torontomu.ca
 
