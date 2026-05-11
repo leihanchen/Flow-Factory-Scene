@@ -33,7 +33,7 @@ log:
   project: "Flow-Factory"  # Project name for logging
   logging_backend: "wandb"  # Options: wandb, swanlab, tensorboard, none
   save_dir: "saves/"  # Directory to save model checkpoints and logs
-  save_freq: 5  # Save frequency in epochs (0 to disable)
+  save_freq: 2  # Save frequency in epochs (0 to disable)
   save_model_only: true  # Save only the model weights (not optimizer, scheduler, etc.)
 
 # Training Configuration
@@ -102,7 +102,7 @@ eval:
   per_device_batch_size: 1  # Eval batch size
   guidance_scale: 4.0  # Guidance scale for sampling
   num_inference_steps: 28  # Number of eval timesteps
-  eval_freq: 20  # Eval frequency in epochs (0 to disable)
+  eval_freq: 2  # Eval frequency in epochs (0 to disable)
   seed: 42  # Eval seed (defaults to training seed)
 
 # Reward Model Configuration
